@@ -1,0 +1,78 @@
+{
+  "id": "village-test",
+  "name": "Testgebiet",
+  "worldWidth": 6400,
+  "roundSeconds": 90,
+  "weapon": {
+    "magazineSize": 8,
+    "reloadSeconds": 1.1
+  },
+  "targets": [
+    {
+      "id": "flying-hen",
+      "kind": "flying",
+      "x": 940,
+      "y": 360,
+      "width": 138,
+      "height": 94,
+      "points": 100,
+      "speed": 350,
+      "flightPattern": "wave",
+      "spawn": { "delay": 0, "duration": 7, "repeatEvery": 13 }
+    },
+    {
+      "id": "golden-target",
+      "kind": "static",
+      "x": 1420,
+      "y": 650,
+      "width": 112,
+      "height": 112,
+      "points": 250,
+      "spawn": { "delay": 5, "duration": 5, "repeatEvery": 12 }
+    },
+    {
+      "id": "friendly-hen",
+      "kind": "penalty",
+      "x": 1700,
+      "y": 650,
+      "width": 118,
+      "height": 136,
+      "points": -300,
+      "spawn": { "delay": 2, "duration": 8, "repeatEvery": 15 }
+    },
+    {
+      "id": "dart-hen",
+      "kind": "flying",
+      "x": 1520,
+      "y": 270,
+      "width": 112,
+      "height": 76,
+      "points": 150,
+      "speed": 650,
+      "flightPattern": "low",
+      "spawn": { "delay": 16, "duration": 6, "repeatEvery": 22 }
+    },
+    {
+      "id": "zigzag-hen",
+      "kind": "flying",
+      "x": 700,
+      "y": 500,
+      "width": 130,
+      "height": 90,
+      "points": 175,
+      "speed": 440,
+      "flightPattern": "zigzag",
+      "spawn": { "delay": 31, "duration": 8, "repeatEvery": 24 }
+    },
+    {
+      "id": "jackpot-target",
+      "kind": "static",
+      "x": 1040,
+      "y": 590,
+      "width": 112,
+      "height": 112,
+      "points": 500,
+      "spawn": { "delay": 45, "duration": 4, "repeatEvery": 30 }
+    }
+  ]
+}

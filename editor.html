@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#152437" />
+    <title>Moorhuhn Level-Editor</title>
+  </head>
+  <body class="editor-page">
+    <main class="editor-layout">
+      <section class="editor-stage">
+        <header class="editor-header">
+          <div>
+            <p class="eyebrow">Moorhuhn Game</p>
+            <h1>Level-Editor</h1>
+          </div>
+          <div class="editor-actions">
+            <button id="test-level" class="primary-action" type="button">Level testen</button>
+            <a class="back-link" href="/">Zum Spiel</a>
+          </div>
+        </header>
+        <canvas id="editor-canvas" width="1920" height="1080" aria-label="Level-Vorschau"></canvas>
+        <label class="viewport-control" for="viewport-x">
+          Kartenausschnitt
+          <input id="viewport-x" type="range" min="0" max="4480" value="0" step="20" />
+        </label>
+        <p class="editor-help">Objekt anklicken und ziehen, um es zu platzieren.</p>
+      </section>
+
+      <aside class="editor-sidebar">
+        <section class="panel">
+          <h2>Level</h2>
+          <label>Name <input id="level-name" type="text" /></label>
+          <label>Rundendauer <input id="round-seconds" type="number" min="1" step="1" /></label>
+          <label>Magazingröße <input id="magazine-size" type="number" min="1" step="1" /></label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading"><h2>Objekte</h2><button id="add-target" type="button">+ Hinzufügen</button></div>
+          <div id="target-list" class="target-list"></div>
+        </section>
+
+        <section class="panel" id="target-panel">
+          <h2>Ausgewähltes Objekt</h2>
+          <label>ID <input id="target-id" type="text" /></label>
+          <label>Typ
+            <select id="target-kind">
+              <option value="flying">Fliegendes Ziel</option>
+              <option value="static">Bonusziel</option>
+              <option value="penalty">Freundes-Ziel</option>
+            </select>
+          </label>
+          <div class="field-grid">
+            <label>X <input id="target-x" type="number" step="1" /></label>
+            <label>Y <input id="target-y" type="number" step="1" /></label>
+            <label>Punkte <input id="target-points" type="number" step="50" /></label>
+            <label>Tempo <input id="target-speed" type="number" min="0" step="10" /></label>
+            <label>Flugbahn
+              <select id="target-pattern">
+                <option value="wave">Welle</option>
+                <option value="zigzag">Zickzack</option>
+                <option value="low">Flach & schnell</option>
+              </select>
+            </label>
+            <label>Start (s) <input id="spawn-delay" type="number" min="0" step="0.5" /></label>
+            <label>Sichtbar (s) <input id="spawn-duration" type="number" min="0.5" step="0.5" /></label>
+            <label>Wiederholen (s) <input id="spawn-repeat" type="number" min="0" step="0.5" /></label>
+          </div>
+          <button id="delete-target" class="danger" type="button">Objekt entfernen</button>
+        </section>
+
+        <section class="panel editor-file-actions">
+          <label class="file-button" for="import-level">JSON importieren</label>
+          <input id="import-level" type="file" accept="application/json,.json" />
+          <button id="reset-level" class="reset-button" type="button">Auf Ausgangslevel zurücksetzen</button>
+        </section>
+        <button id="export-level" class="export-button" type="button">JSON exportieren</button>
+        <p id="editor-status" class="editor-status" aria-live="polite"></p>
+      </aside>
+    </main>
+    <script type="module" src="/src/editor/main.ts"></script>
+  </body>
+</html>
