@@ -1,6 +1,7 @@
 import type { FlightPattern, LevelConfig, TargetConfig, TargetKind } from "./level-types";
 
 const DRAFT_STORAGE_KEY = "moorhuhn-editor-level";
+const HIGH_SCORES_STORAGE_KEY = "moorhuhn-high-scores";
 
 const cloneLevel = (level: LevelConfig): LevelConfig => structuredClone(level);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -78,4 +79,26 @@ export function saveEditorLevel(level: LevelConfig): void {
 
 export function clearEditorLevel(): void {
   localStorage.removeItem(DRAFT_STORAGE_KEY);
+}
+
+export function getHighScore(levelId: string): number {
+  try {
+    const scores = JSON.parse(localStorage.getItem(HIGH_SCORES_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
+    return typeof scores[levelId] === "number" ? scores[levelId] : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Stores only a higher score and returns the best score after this round. */
+export function recordHighScore(levelId: string, score: number): number {
+  try {
+    const scores = JSON.parse(localStorage.getItem(HIGH_SCORES_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
+    const previous = typeof scores[levelId] === "number" ? scores[levelId] : 0;
+    const best = Math.max(previous, score);
+    localStorage.setItem(HIGH_SCORES_STORAGE_KEY, JSON.stringify({ ...scores, [levelId]: best }));
+    return best;
+  } catch {
+    return score;
+  }
 }

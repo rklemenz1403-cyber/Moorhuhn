@@ -53,6 +53,7 @@ Das aktuelle Level ist 6.400 Pixel breit. Bewege die Kamera mit `A` / `D` oder d
 - Ziele erscheinen in eigenen Wellen. Pro Objekt lassen sich Startzeit, Sichtbarkeitsdauer und Wiederholungsintervall festlegen.
 - Fliegende Ziele unterstützen die Flugbahnen `wave`, `zigzag` und `low`; Tempo und Flugbahn sind ebenfalls Datenwerte.
 - Treffer lösen Partikel und Punktetext aus. Mehrere schnelle positive Treffer bauen eine Combo auf; ab drei Treffern steigt der Punkte-Multiplikator.
+- Ein Startscreen beginnt die Runde erst per Klick oder `Enter`. Nach jeder Runde zeigt die Ergebnisansicht Trefferquote, Bestleistung und einen möglichen neuen Rekord.
 
 Die JSON-Datei ist die spätere Brücke zum Level-Editor: Neue Werte und Zielobjekte können dort ergänzt werden, ohne die Spielschleife umzubauen.
 

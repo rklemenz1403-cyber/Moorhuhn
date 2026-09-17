@@ -6,11 +6,12 @@ import levelData from "../data/prototype-level.json";
 import { FlyingTarget } from "./entities/flying-target";
 import { SpawnedTarget } from "./entities/spawned-target";
 import { StaticTarget } from "./entities/static-target";
-import { loadEditorLevel } from "./level-storage";
+import { getHighScore, loadEditorLevel, recordHighScore } from "./level-storage";
 import type { LevelConfig, Target } from "./level-types";
 
 type FloatingText = { x: number; y: number; text: string; color: string; timeRemaining: number };
 type HitParticle = { x: number; y: number; vx: number; vy: number; timeRemaining: number; color: string };
+type GamePhase = "title" | "playing" | "results";
 
 export class Game {
   private static readonly CAMERA_SPEED = 850;
@@ -20,7 +21,7 @@ export class Game {
   private previousTime = 0;
   private animationFrame = 0;
   private roundTimeRemaining: number;
-  private isRoundOver = false;
+  private phase: GamePhase = "title";
   private score = 0;
   private ammo: number;
   private reloadTimeRemaining = 0;
@@ -33,6 +34,8 @@ export class Game {
   private misses = 0;
   private readonly floatingTexts: FloatingText[] = [];
   private readonly hitParticles: HitParticle[] = [];
+  private bestScore: number;
+  private isNewRecord = false;
 
   public constructor(
     private readonly renderer: Renderer,
@@ -41,6 +44,7 @@ export class Game {
     this.level = loadEditorLevel(levelData as LevelConfig);
     this.roundTimeRemaining = this.level.roundSeconds;
     this.ammo = this.level.weapon.magazineSize;
+    this.bestScore = getHighScore(this.level.id);
     this.targets = this.level.targets.map((config) => new SpawnedTarget(
       config.kind === "flying"
         ? new FlyingTarget(config, this.level.worldWidth)
@@ -66,14 +70,18 @@ export class Game {
   };
 
   private update(deltaSeconds: number): void {
-    if (this.isRoundOver) {
-      if (this.input.consumeKeyPress("Enter")) this.restartRound();
+    if (this.phase === "title") {
+      if (this.input.consumeKeyPress("Enter") || this.input.consumePrimaryPress()) this.startRound();
+      return;
+    }
+    if (this.phase === "results") {
+      if (this.input.consumeKeyPress("Enter") || this.input.consumePrimaryPress()) this.startRound();
       return;
     }
 
     this.roundTimeRemaining = Math.max(0, this.roundTimeRemaining - deltaSeconds);
     if (this.roundTimeRemaining === 0) {
-      this.isRoundOver = true;
+      this.completeRound();
       return;
     }
     const direction = Number(this.input.isHeld("ArrowRight", "KeyD"))
@@ -100,8 +108,9 @@ export class Game {
     this.targets.forEach((target) => target.draw(context));
     this.camera.end(context);
 
-    this.drawOverlay(context);
-    if (this.isRoundOver) this.drawRoundOver(context);
+    if (this.phase === "playing") this.drawOverlay(context);
+    if (this.phase === "title") this.drawTitleScreen(context);
+    if (this.phase === "results") this.drawRoundOver(context);
   }
 
   private drawPrototypeBackdrop(context: CanvasRenderingContext2D): void {
@@ -330,10 +339,10 @@ export class Game {
     if (this.reloadTimeRemaining === 0) this.reloadTimeRemaining = this.level.weapon.reloadSeconds;
   }
 
-  private restartRound(): void {
+  private startRound(): void {
     this.camera.x = 0;
     this.roundTimeRemaining = this.level.roundSeconds;
-    this.isRoundOver = false;
+    this.phase = "playing";
     this.score = 0;
     this.ammo = this.level.weapon.magazineSize;
     this.reloadTimeRemaining = 0;
@@ -344,6 +353,13 @@ export class Game {
     this.floatingTexts.length = 0;
     this.hitParticles.length = 0;
     this.targets.forEach((target) => target.reset());
+  }
+
+  private completeRound(): void {
+    this.phase = "results";
+    const previousBest = this.bestScore;
+    this.bestScore = recordHighScore(this.level.id, this.score);
+    this.isNewRecord = this.score > previousBest;
   }
 
   private formatTime(seconds: number): string {
@@ -362,9 +378,40 @@ export class Game {
     context.fillText(`Endstand: ${this.score} Punkte`, VIRTUAL_WIDTH / 2, 482);
     context.font = "500 28px system-ui, sans-serif";
     context.fillText(`Treffer ${this.hits} · Fehlschüsse ${this.misses}`, VIRTUAL_WIDTH / 2, 530);
+    context.fillText(`Trefferquote ${this.formatAccuracy()} · Beste Leistung ${this.bestScore}`, VIRTUAL_WIDTH / 2, 572);
     context.fillStyle = "#f6c945";
-    context.font = "600 30px system-ui, sans-serif";
-    context.fillText("Enter drücken, um erneut zu starten", VIRTUAL_WIDTH / 2, 600);
+    context.font = "700 30px system-ui, sans-serif";
+    if (this.isNewRecord) context.fillText("Neue Bestleistung!", VIRTUAL_WIDTH / 2, 622);
+    context.font = "600 26px system-ui, sans-serif";
+    context.fillText("Klick oder Enter: Noch eine Runde", VIRTUAL_WIDTH / 2, 676);
     context.textAlign = "left";
+  }
+
+  private drawTitleScreen(context: CanvasRenderingContext2D): void {
+    context.fillStyle = "rgb(8 20 34 / 66%)";
+    context.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    context.textAlign = "center";
+    context.fillStyle = "#fff";
+    context.font = "700 86px system-ui, sans-serif";
+    context.fillText("Moorhuhn", VIRTUAL_WIDTH / 2, 370);
+    context.fillStyle = "#f6c945";
+    context.font = "600 36px system-ui, sans-serif";
+    context.fillText(this.level.name, VIRTUAL_WIDTH / 2, 428);
+    context.fillStyle = "#dceaf0";
+    context.font = "500 26px system-ui, sans-serif";
+    context.fillText(`${this.level.roundSeconds} Sekunden · Wellen · Bonusziele`, VIRTUAL_WIDTH / 2, 482);
+    context.fillStyle = "#f6c945";
+    context.font = "700 32px system-ui, sans-serif";
+    context.fillText("Klick oder Enter zum Starten", VIRTUAL_WIDTH / 2, 600);
+    context.fillStyle = "#dceaf0";
+    context.font = "20px system-ui, sans-serif";
+    context.fillText("A / D bzw. ← / → bewegen · Klick schießen · R nachladen", VIRTUAL_WIDTH / 2, 646);
+    if (this.bestScore > 0) context.fillText(`Beste Leistung: ${this.bestScore} Punkte`, VIRTUAL_WIDTH / 2, 704);
+    context.textAlign = "left";
+  }
+
+  private formatAccuracy(): string {
+    const shots = this.hits + this.misses;
+    return shots === 0 ? "–" : `${Math.round((this.hits / shots) * 100)} %`;
   }
 }
