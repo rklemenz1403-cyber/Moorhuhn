@@ -13,6 +13,8 @@ const targetId = document.querySelector<HTMLInputElement>("#target-id")!;
 const targetKind = document.querySelector<HTMLSelectElement>("#target-kind")!;
 const targetX = document.querySelector<HTMLInputElement>("#target-x")!;
 const targetY = document.querySelector<HTMLInputElement>("#target-y")!;
+const targetWidth = document.querySelector<HTMLInputElement>("#target-width")!;
+const targetHeight = document.querySelector<HTMLInputElement>("#target-height")!;
 const targetPoints = document.querySelector<HTMLInputElement>("#target-points")!;
 const targetSpeed = document.querySelector<HTMLInputElement>("#target-speed")!;
 const targetPattern = document.querySelector<HTMLSelectElement>("#target-pattern")!;
@@ -27,11 +29,12 @@ const testButton = document.querySelector<HTMLButtonElement>("#test-level")!;
 const importInput = document.querySelector<HTMLInputElement>("#import-level")!;
 const resetButton = document.querySelector<HTMLButtonElement>("#reset-level")!;
 const editorStatus = document.querySelector<HTMLParagraphElement>("#editor-status")!;
+const waveTimeline = document.querySelector<HTMLDivElement>("#wave-timeline")!;
 
 if (!canvas || !targetList || !viewSlider || !levelName || !roundSeconds || !magazineSize
-  || !targetId || !targetKind || !targetX || !targetY || !targetPoints || !targetSpeed || !targetPattern
+  || !targetId || !targetKind || !targetX || !targetY || !targetWidth || !targetHeight || !targetPoints || !targetSpeed || !targetPattern
   || !spawnDelay || !spawnDuration || !spawnRepeat || !targetPanel || !addButton || !deleteButton || !exportButton
-  || !testButton || !importInput || !resetButton || !editorStatus) {
+  || !testButton || !importInput || !resetButton || !editorStatus || !waveTimeline) {
   throw new Error("Level editor could not initialize.");
 }
 
@@ -71,17 +74,17 @@ function drawTarget(target: TargetConfig, index: number): void {
   context.translate(x, y);
   context.fillStyle = color;
   context.beginPath();
-  context.arc(0, 0, 48, 0, Math.PI * 2);
+  context.ellipse(0, 0, target.width / 2, target.height / 2, 0, 0, Math.PI * 2);
   context.fill();
   context.fillStyle = "#233044";
   context.font = "700 22px system-ui, sans-serif";
   context.textAlign = "center";
   context.fillText(target.kind === "flying" ? "H" : target.kind === "static" ? "+" : "!", 0, 8);
-  context.strokeStyle = isSelected ? "#fff" : "rgb(35 48 68 / 55%)";
-  context.lineWidth = isSelected ? 7 : 3;
-  context.beginPath();
-  context.arc(0, 0, 60, 0, Math.PI * 2);
-  context.stroke();
+  context.setLineDash(isSelected ? [12, 8] : [6, 6]);
+  context.strokeStyle = isSelected ? "#fff" : "rgb(35 48 68 / 60%)";
+  context.lineWidth = isSelected ? 5 : 2;
+  context.strokeRect(-target.width / 2, -target.height / 2, target.width, target.height);
+  context.setLineDash([]);
   context.fillStyle = "#233044";
   context.font = "600 18px system-ui, sans-serif";
   context.fillText(target.id, 0, 88);
@@ -122,6 +125,32 @@ function renderTargetList(): void {
   }));
 }
 
+function renderTimeline(): void {
+  waveTimeline.replaceChildren(...level.targets.map((target, index) => {
+    const row = document.createElement("div");
+    row.className = index === selectedIndex ? "timeline-row is-selected" : "timeline-row";
+    const label = document.createElement("span");
+    label.className = "timeline-label";
+    label.textContent = target.id;
+    const track = document.createElement("div");
+    track.className = "timeline-track";
+    const repeatEvery = target.spawn.repeatEvery ?? Number.POSITIVE_INFINITY;
+    for (let start = target.spawn.delay; start < level.roundSeconds; start += repeatEvery) {
+      const duration = Math.min(target.spawn.duration, level.roundSeconds - start);
+      const block = document.createElement("button");
+      block.type = "button";
+      block.className = `timeline-block ${target.kind}`;
+      block.style.left = `${(start / level.roundSeconds) * 100}%`;
+      block.style.width = `${Math.max(1, (duration / level.roundSeconds) * 100)}%`;
+      block.title = `${target.id}: ${start.toFixed(1)}–${(start + duration).toFixed(1)} s`;
+      block.addEventListener("click", () => { selectedIndex = index; renderAll(); });
+      track.append(block);
+    }
+    row.append(label, track);
+    return row;
+  }));
+}
+
 function renderForm(): void {
   levelName.value = level.name;
   setValue(roundSeconds, level.roundSeconds);
@@ -133,6 +162,8 @@ function renderForm(): void {
   setValue(targetKind, target.kind);
   setValue(targetX, target.x);
   setValue(targetY, target.y);
+  setValue(targetWidth, target.width);
+  setValue(targetHeight, target.height);
   setValue(targetPoints, target.points);
   targetSpeed.value = target.speed === undefined ? "" : String(target.speed);
   setValue(targetPattern, target.flightPattern ?? "wave");
@@ -144,6 +175,7 @@ function renderForm(): void {
 function renderAll(): void {
   renderCanvas();
   renderTargetList();
+  renderTimeline();
   renderForm();
 }
 
@@ -159,7 +191,7 @@ function selectTargetAt(position: { x: number; y: number }): void {
   selectedIndex = null;
   for (let index = level.targets.length - 1; index >= 0; index -= 1) {
     const target = level.targets[index];
-    if (Math.hypot(target.x - position.x, target.y - position.y) < 72) {
+    if (Math.abs(target.x - position.x) <= target.width / 2 && Math.abs(target.y - position.y) <= target.height / 2) {
       selectedIndex = index;
       break;
     }
@@ -197,6 +229,8 @@ const updateSelectedTarget = (): void => {
   target.kind = targetKind.value as TargetKind;
   target.x = Number(targetX.value);
   target.y = Number(targetY.value);
+  target.width = Math.max(20, Number(targetWidth.value));
+  target.height = Math.max(20, Number(targetHeight.value));
   target.points = Number(targetPoints.value);
   const speed = Number(targetSpeed.value);
   if (target.kind === "flying" && speed > 0) target.speed = speed;
@@ -211,7 +245,7 @@ const updateSelectedTarget = (): void => {
   renderAll();
 };
 
-[targetId, targetKind, targetX, targetY, targetPoints, targetSpeed, targetPattern, spawnDelay, spawnDuration, spawnRepeat].forEach((element) => element.addEventListener("input", updateSelectedTarget));
+[targetId, targetKind, targetX, targetY, targetWidth, targetHeight, targetPoints, targetSpeed, targetPattern, spawnDelay, spawnDuration, spawnRepeat].forEach((element) => element.addEventListener("input", updateSelectedTarget));
 addButton.addEventListener("click", () => {
   const index = level.targets.length + 1;
   level.targets.push({

@@ -25,6 +25,13 @@
           <input id="viewport-x" type="range" min="0" max="4480" value="0" step="20" />
         </label>
         <p class="editor-help">Objekt anklicken und ziehen, um es zu platzieren.</p>
+        <section class="timeline-panel" aria-label="Wellen-Zeitleiste">
+          <div class="timeline-heading">
+            <h2>Wellen-Zeitleiste</h2>
+            <span>0–90 Sekunden</span>
+          </div>
+          <div id="wave-timeline" class="wave-timeline"></div>
+        </section>
       </section>
 
       <aside class="editor-sidebar">
@@ -53,6 +60,8 @@
           <div class="field-grid">
             <label>X <input id="target-x" type="number" step="1" /></label>
             <label>Y <input id="target-y" type="number" step="1" /></label>
+            <label>Hitbox-Breite <input id="target-width" type="number" min="20" step="1" /></label>
+            <label>Hitbox-Höhe <input id="target-height" type="number" min="20" step="1" /></label>
             <label>Punkte <input id="target-points" type="number" step="50" /></label>
             <label>Tempo <input id="target-speed" type="number" min="0" step="10" /></label>
             <label>Flugbahn
