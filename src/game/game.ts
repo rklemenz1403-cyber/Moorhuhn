@@ -1,4 +1,5 @@
 import { Camera } from "../core/camera";
+import { AudioSystem } from "../core/audio";
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from "../core/constants";
 import { Input } from "../core/input";
 import { Renderer } from "../core/renderer";
@@ -11,7 +12,7 @@ import type { LevelConfig, Target } from "./level-types";
 
 type FloatingText = { x: number; y: number; text: string; color: string; timeRemaining: number };
 type HitParticle = { x: number; y: number; vx: number; vy: number; timeRemaining: number; color: string };
-type GamePhase = "title" | "playing" | "results";
+type GamePhase = "title" | "playing" | "paused" | "results";
 
 export class Game {
   private static readonly CAMERA_SPEED = 850;
@@ -29,6 +30,7 @@ export class Game {
   private lastShotHit = false;
   private lastShotText = "";
   private combo = 0;
+  private maxCombo = 0;
   private comboTimeRemaining = 0;
   private hits = 0;
   private misses = 0;
@@ -36,10 +38,13 @@ export class Game {
   private readonly hitParticles: HitParticle[] = [];
   private bestScore: number;
   private isNewRecord = false;
+  private waveIndex = 1;
+  private waveMessageTimeRemaining = 0;
 
   public constructor(
     private readonly renderer: Renderer,
     private readonly input: Input,
+    private readonly audio: AudioSystem,
   ) {
     this.level = loadEditorLevel(levelData as LevelConfig);
     this.roundTimeRemaining = this.level.roundSeconds;
@@ -78,6 +83,15 @@ export class Game {
       if (this.input.consumeKeyPress("Enter") || this.input.consumePrimaryPress()) this.startRound();
       return;
     }
+    if (this.phase === "paused") {
+      if (this.input.consumeKeyPress("Escape") || this.input.consumeKeyPress("KeyP")) this.phase = "playing";
+      return;
+    }
+    if (this.input.consumeKeyPress("Escape") || this.input.consumeKeyPress("KeyP")) {
+      this.phase = "paused";
+      return;
+    }
+    if (this.input.consumeKeyPress("KeyM")) this.audio.toggleMuted();
 
     this.roundTimeRemaining = Math.max(0, this.roundTimeRemaining - deltaSeconds);
     if (this.roundTimeRemaining === 0) {
@@ -90,6 +104,7 @@ export class Game {
     this.camera.x = Math.max(0, Math.min(this.level.worldWidth - VIRTUAL_WIDTH, nextX));
     this.targets.forEach((target) => target.update(deltaSeconds));
     this.updateFeedback(deltaSeconds);
+    this.updateWaveState(deltaSeconds);
 
     this.reloadTimeRemaining = Math.max(0, this.reloadTimeRemaining - deltaSeconds);
     this.shotFlashTimeRemaining = Math.max(0, this.shotFlashTimeRemaining - deltaSeconds);
@@ -110,6 +125,7 @@ export class Game {
 
     if (this.phase === "playing") this.drawOverlay(context);
     if (this.phase === "title") this.drawTitleScreen(context);
+    if (this.phase === "paused") this.drawPauseScreen(context);
     if (this.phase === "results") this.drawRoundOver(context);
   }
 
@@ -213,11 +229,11 @@ export class Game {
     context.fillText(this.reloadTimeRemaining > 0 ? "Munition  lädt nach …" : `Munition  ${this.ammo} / ${this.level.weapon.magazineSize}`, 48, 174);
     context.fillStyle = "#f6c945";
     context.font = "600 17px system-ui, sans-serif";
-    context.fillText(this.combo > 1 ? `Combo ×${this.combo}` : "Wellenmodus aktiv", 48, 214);
+    context.fillText(this.combo > 1 ? `Combo ×${this.combo}` : `Welle ${this.waveIndex} / 6`, 48, 214);
     context.fillStyle = "#dceaf0";
     context.font = "16px system-ui, sans-serif";
     context.fillText("A / D bzw. ← / → bewegen", 48, 246);
-    context.fillText("Klick schießen · R nachladen", 48, 270);
+    context.fillText("Klick schießen · R laden · P Pause · M Ton", 48, 270);
     if (this.shotFlashTimeRemaining > 0) {
       context.fillStyle = this.lastShotHit ? "#ffe66d" : "#ffd5cf";
       context.font = "600 26px system-ui, sans-serif";
@@ -231,6 +247,7 @@ export class Game {
     context.fillText(`Position ${Math.round(this.camera.x)} / ${this.level.worldWidth - VIRTUAL_WIDTH}`, VIRTUAL_WIDTH - 42, 55);
     context.textAlign = "left";
     this.drawHitFeedback(context);
+    if (this.waveMessageTimeRemaining > 0) this.drawWaveMessage(context);
   }
 
   private fire(): void {
@@ -242,6 +259,7 @@ export class Game {
 
     this.ammo -= 1;
     this.shotFlashTimeRemaining = 0.18;
+    this.audio.playShot();
     const pointer = this.input.pointerPosition;
     const hit = this.targets.map((target) => target.tryHit(pointer.x + this.camera.x, pointer.y + this.camera.y))
       .find((result) => result !== null);
@@ -256,16 +274,19 @@ export class Game {
     let awardedPoints = hit.points;
     if (hit.points > 0) {
       this.combo = this.comboTimeRemaining > 0 ? this.combo + 1 : 1;
+      this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.comboTimeRemaining = 1.8;
       const multiplier = Math.min(3, 1 + Math.floor((this.combo - 1) / 3));
       awardedPoints *= multiplier;
       this.lastShotText = multiplier > 1 ? `+${awardedPoints} · Combo ×${multiplier}` : `+${awardedPoints} ${hit.label}`;
       this.addHitFeedback(pointer, this.lastShotText, "#ffe66d");
+      this.audio.playHit();
     } else {
       this.combo = 0;
       this.comboTimeRemaining = 0;
       this.lastShotText = `${awardedPoints} ${hit.label}`;
       this.addHitFeedback(pointer, this.lastShotText, "#ffaaa3");
+      this.audio.playMiss();
     }
     this.score += awardedPoints;
   }
@@ -276,6 +297,7 @@ export class Game {
     this.comboTimeRemaining = 0;
     this.lastShotText = "Daneben";
     this.addHitFeedback(pointer, "Daneben", "#ffd5cf", 4);
+    this.audio.playMiss();
   }
 
   private addHitFeedback(pointer: { x: number; y: number }, text: string, color: string, particleCount = 12): void {
@@ -336,23 +358,30 @@ export class Game {
   }
 
   private startReload(): void {
-    if (this.reloadTimeRemaining === 0) this.reloadTimeRemaining = this.level.weapon.reloadSeconds;
+    if (this.reloadTimeRemaining === 0) {
+      this.reloadTimeRemaining = this.level.weapon.reloadSeconds;
+      this.audio.playReload();
+    }
   }
 
   private startRound(): void {
     this.camera.x = 0;
     this.roundTimeRemaining = this.level.roundSeconds;
     this.phase = "playing";
+    this.waveIndex = 1;
+    this.waveMessageTimeRemaining = 1.4;
     this.score = 0;
     this.ammo = this.level.weapon.magazineSize;
     this.reloadTimeRemaining = 0;
     this.combo = 0;
+    this.maxCombo = 0;
     this.comboTimeRemaining = 0;
     this.hits = 0;
     this.misses = 0;
     this.floatingTexts.length = 0;
     this.hitParticles.length = 0;
     this.targets.forEach((target) => target.reset());
+    this.audio.playStart();
   }
 
   private completeRound(): void {
@@ -360,6 +389,7 @@ export class Game {
     const previousBest = this.bestScore;
     this.bestScore = recordHighScore(this.level.id, this.score);
     this.isNewRecord = this.score > previousBest;
+    this.audio.playRoundEnd();
   }
 
   private formatTime(seconds: number): string {
@@ -378,12 +408,13 @@ export class Game {
     context.fillText(`Endstand: ${this.score} Punkte`, VIRTUAL_WIDTH / 2, 482);
     context.font = "500 28px system-ui, sans-serif";
     context.fillText(`Treffer ${this.hits} · Fehlschüsse ${this.misses}`, VIRTUAL_WIDTH / 2, 530);
-    context.fillText(`Trefferquote ${this.formatAccuracy()} · Beste Leistung ${this.bestScore}`, VIRTUAL_WIDTH / 2, 572);
+    context.fillText(`Trefferquote ${this.formatAccuracy()} · Höchste Combo ×${this.maxCombo}`, VIRTUAL_WIDTH / 2, 572);
+    context.fillText(`Beste Leistung ${this.bestScore}`, VIRTUAL_WIDTH / 2, 612);
     context.fillStyle = "#f6c945";
     context.font = "700 30px system-ui, sans-serif";
-    if (this.isNewRecord) context.fillText("Neue Bestleistung!", VIRTUAL_WIDTH / 2, 622);
+    if (this.isNewRecord) context.fillText("Neue Bestleistung!", VIRTUAL_WIDTH / 2, 658);
     context.font = "600 26px system-ui, sans-serif";
-    context.fillText("Klick oder Enter: Noch eine Runde", VIRTUAL_WIDTH / 2, 676);
+    context.fillText("Klick oder Enter: Noch eine Runde", VIRTUAL_WIDTH / 2, 716);
     context.textAlign = "left";
   }
 
@@ -405,7 +436,7 @@ export class Game {
     context.fillText("Klick oder Enter zum Starten", VIRTUAL_WIDTH / 2, 600);
     context.fillStyle = "#dceaf0";
     context.font = "20px system-ui, sans-serif";
-    context.fillText("A / D bzw. ← / → bewegen · Klick schießen · R nachladen", VIRTUAL_WIDTH / 2, 646);
+    context.fillText("A / D bzw. ← / → bewegen · Klick schießen · R laden", VIRTUAL_WIDTH / 2, 646);
     if (this.bestScore > 0) context.fillText(`Beste Leistung: ${this.bestScore} Punkte`, VIRTUAL_WIDTH / 2, 704);
     context.textAlign = "left";
   }
@@ -413,5 +444,38 @@ export class Game {
   private formatAccuracy(): string {
     const shots = this.hits + this.misses;
     return shots === 0 ? "–" : `${Math.round((this.hits / shots) * 100)} %`;
+  }
+
+  private drawPauseScreen(context: CanvasRenderingContext2D): void {
+    context.fillStyle = "rgb(8 20 34 / 74%)";
+    context.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    context.textAlign = "center";
+    context.fillStyle = "#fff";
+    context.font = "700 72px system-ui, sans-serif";
+    context.fillText("Pausiert", VIRTUAL_WIDTH / 2, 460);
+    context.fillStyle = "#f6c945";
+    context.font = "600 30px system-ui, sans-serif";
+    context.fillText("P oder Esc zum Fortsetzen", VIRTUAL_WIDTH / 2, 528);
+    context.textAlign = "left";
+  }
+
+  private updateWaveState(deltaSeconds: number): void {
+    this.waveMessageTimeRemaining = Math.max(0, this.waveMessageTimeRemaining - deltaSeconds);
+    const elapsed = this.level.roundSeconds - this.roundTimeRemaining;
+    const nextWaveIndex = Math.min(6, Math.floor(elapsed / 15) + 1);
+    if (nextWaveIndex !== this.waveIndex) {
+      this.waveIndex = nextWaveIndex;
+      this.waveMessageTimeRemaining = 1.8;
+    }
+  }
+
+  private drawWaveMessage(context: CanvasRenderingContext2D): void {
+    context.textAlign = "center";
+    context.globalAlpha = Math.min(1, this.waveMessageTimeRemaining * 1.5);
+    context.fillStyle = "#fff";
+    context.font = "700 44px system-ui, sans-serif";
+    context.fillText(`Welle ${this.waveIndex}`, VIRTUAL_WIDTH / 2, 160);
+    context.globalAlpha = 1;
+    context.textAlign = "left";
   }
 }

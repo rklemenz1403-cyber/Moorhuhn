@@ -90,7 +90,6 @@ export function getHighScore(levelId: string): number {
   }
 }
 
-/** Stores only a higher score and returns the best score after this round. */
 export function recordHighScore(levelId: string, score: number): number {
   try {
     const scores = JSON.parse(localStorage.getItem(HIGH_SCORES_STORAGE_KEY) ?? "{}") as Record<string, unknown>;
